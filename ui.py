@@ -3,9 +3,10 @@
 from Tkinter import *
 
 import tkMessageBox
+import os
 
-def hello():
-    print "hello"
+# def hello():
+#     print "hello"
 
 # class MainMenu():
 #     def __init__(self, master):
@@ -19,30 +20,111 @@ def hello():
 #         second.add_command(label="help", command=hello)
 #         mainmenu.add_cascade(label="help", menu=second)
 #         master.config(menu=mainmenu)
-
+def recur_path(path, depth=0):
+    tree = {}
+    tree["path"] = path
+    tree["depth"] = depth
+    tree["closed"] = True
+    tree["list"] = []
+    tree["child"] = {}
+    if os.path.isdir(path):
+        _, dirs, files = os.walk(path).next()
+        for dir in dirs:
+            tree["child"][dir] = recur_path(path + "/" + dir, depth + 1)
+        for file in files:
+            tree["child"][file] = recur_path(path + "/" + file, depth + 1)
+    return tree
 class MainFrame(Frame):
     def __init__(self, bor=0):
-        Frame.__init__(self, borderwidth=bor, background="GRAY")
+        Frame.__init__(self, borderwidth=bor)
         self.dirtree = {}
         self.__createWidgets__()
 
     def __createWidgets__(self):
-        self.libo = Listbox(self, font=10, selectmode="browse")
-        self.libo.place(relwidth=1.0, relheight=1.0)
+        self.box = Listbox(self, font=15, selectmode="browse")
+        self.box.place(relwidth=1.0, relheight=1.0)
 
-    def additem(self, items):
+    def additem(self, items, index=0, depth=0):
         for it in items:
-            self.libo.insert(self.libo.size(), it)
+            self.box.insert(index, depth * " " + it)
+            index = index + 1
+    def delitem(self, start=0, end=END):
+        self.box.delete(start, end)
 
-    def delitem(self, name):
+
+class MarkFrame(MainFrame):
+    def __init__(self, bor=0):
+        MainFrame.__init__(self, bor=bor)
+        self.dirtree = {}
+        self.dirlist = []
+
+    def rollfolder(self, event):
+        index = self.box.curselection()[0]
+        childlist = self.dirlist[index]
+        dt = self.dirtree
+        info = {}
+        for c in childlist:
+            info = dt[c]
+            dt = info["child"]
+        
+        idx = index + 1
+        if info["list"]:
+            for c in info["list"]:
+                self.dirlist.insert(idx, c)
+                self.additem([c[-1]], idx, 2 * (len(c) - 1))
+                idx = idx + 1
+            info["closed"] = False
+            del info["list"][:]
+
+        elif info["child"]:
+            names = list(info["child"])
+            if info["closed"]:
+                for name in names:
+                    tmplist = list(childlist)
+                    tmplist.append(name)
+                    self.dirlist.insert(idx, tmplist)
+                    idx = idx + 1
+                self.additem(names, idx, 2 * (info["depth"] + 1))
+                info["closed"] = False
+            else:
+                while idx < len(self.dirlist) and len(self.dirlist[idx]) > len(childlist):
+                    info["list"].append(self.dirlist[idx])
+                    del self.dirlist[idx]
+                self.delitem(idx, idx + len(info))
+                info["closed"] = True
+        if info["child"]:
+            self.cb_func(info["child"])
+
+    def addproj(self, name, path):
+        self.dirtree[name] = recur_path(path)
+        self.dirlist.append([name])
+        self.additem(self.dirlist[-1])
+        self.box.bind('<Double-Button-1>', self.rollfolder)
+
+    def delproj(self, name):
         pass
 
-    def __unfold__(self):
-        pass
+    def register_cb(self, func):
+        self.cb_func = func
     
-    def __clear__(self):
-        pass
+class DirListFrame(MainFrame):
+    def __init__(self, bor=0):
+        MainFrame.__init__(self, bor=bor)
+        self.box.bind('<Double-Button-1>', self.rollfolder)
+        self.dirtree = {}
+        self.dirlist = []
 
+    def update_cb(self, items):
+        self.delitem()
+        self.dirtree = items
+        self.dirlist = list(items.keys())
+        self.additem(self.dirlist)
+
+    def rollfolder(self, event):
+        index = self.box.curselection()[0]
+        child = self.dirtree[self.dirlist[index]]["child"]
+        if child:
+            self.update_cb(child)
 class MainWindow(Tk):
     def __init__(self, master=None):
         Tk.__init__(self, master)
@@ -61,15 +143,16 @@ class MainWindow(Tk):
 
     def createWidgets(self):
         # self.Menu = MainMenu(self)
-        self.MarkBook = MainFrame(bor=1)
+        self.MarkBook = MarkFrame(bor=1)
         self.MarkBook.place(x=0, relwidth=0.25, relheight=1.0, bordermode=INSIDE)
-        self.DirDetail = MainFrame(bor=1)
+        self.DirDetail = DirListFrame(bor=1)
         self.DirDetail.place(relx=0.25, relwidth=0.75, relheight=1.0, bordermode=INSIDE)
+        self.MarkBook.register_cb(self.DirDetail.update_cb)
 
-    def addproject(self, name):
-        self.MarkBook.additem(name)
+    def addproj(self, name, path):
+        self.MarkBook.addproj(name, path)
 
 
 app = MainWindow()
-app.addproject(["aa","bb"])
+app.addproj("avx", "/home/hering/WorkSpace/SVN/trunk")
 app.mainloop()
