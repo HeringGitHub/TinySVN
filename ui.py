@@ -172,5 +172,5 @@ class MainWindow(Tk):
 
 
 app = MainWindow()
-app.addproj("avx", "/home/hering/WorkSpace/SVN/trunk")
+app.addproj("pro1", "/home/hering/WorkSpace/SVN/trunk")
 app.mainloop()
