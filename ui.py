@@ -5,21 +5,7 @@ from Tkinter import *
 import tkMessageBox
 import os
 
-# def hello():
-#     print "hello"
 
-# class MainMenu():
-#     def __init__(self, master):
-#         mainmenu = Menu(master)
-#         first = Menu(mainmenu, tearoff=0)
-#         first.add_command(label="pre", command=hello)
-#         first.add_command(label="next", command=hello)
-#         mainmenu.add_cascade(label="dir", menu=first)
-#         second = Menu(mainmenu, tearoff=0)
-#         second.add_command(label="about", command=hello)
-#         second.add_command(label="help", command=hello)
-#         mainmenu.add_cascade(label="help", menu=second)
-#         master.config(menu=mainmenu)
 def recur_path(path, depth=0):
     tree = {}
     tree["path"] = path
@@ -56,7 +42,6 @@ class MainFrame(Frame):
 
     def __createWidgets__(self):
         self.box = Listbox(self, font=15, selectmode="browse")
-        self.box.place(relwidth=1.0, relheight=1.0)
 
     def additem(self, items, index=0, depth=0):
         for it in items:
@@ -67,22 +52,130 @@ class MainFrame(Frame):
     
     def register_cb(self, func):
         self.cb_func = func
+class AddProjDialog(Toplevel):
+    def __init__(self):
+        Toplevel.__init__(self)
+        self.title('Add Project')
+        scr_wid = self.winfo_screenwidth()
+        scr_hei = self.winfo_screenheight()
+        self.win_wid = scr_wid * 0.3
+        self.win_hei = scr_hei * 0.3
+        win_skx = (scr_wid - self.win_wid) / 2.0
+        win_sky = (scr_hei - self.win_hei) / 2.0
+        reso = "%sx%s+%s+%s" % \
+            (str(int(self.win_wid)), str(int(self.win_hei)),
+             str(int(win_skx)), str(int(win_sky)))
+        self.geometry(reso)
+        self.resizable(False, False)
+        self.btnfrm = Frame(self)
+        self.btnfrm.pack(side=BOTTOM, fill="x")
+        self.canbtn = Button(master=self.btnfrm, text=" Cancel ", command=self.destroy)
+        self.prebtn = Button(master=self.btnfrm, text="Previous", command=self.prepage)
+        self.nxtbtn = Button(master=self.btnfrm, text="  Next  ", command=self.nextpage)
+        self.canbtn.pack(side=RIGHT)
+        self.nxtbtn.pack(side=RIGHT)
+        self.prebtn.pack(side=RIGHT)
+        self.projurl = StringVar(self)
+        self.projpath = StringVar(self)
+        self.projname = StringVar(self)
+        self.listwidget = []
+        self.projinfo = {}
+        self.index = 1
+        self.pages = [self.secondpage, self.firstpage]
+        self.pages[self.index]()
+
+    def nextpage(self):
+        if self.index == 1:
+            self.projinfo["name"] = self.projname.get()
+            self.projinfo["path"] = self.projpath.get()
+            self.projinfo["url"] = self.projurl.get()
+            self.destroy()
+        else:
+            self.pages[self.index]()
+    
+    def prepage(self):
+        self.pages[self.index]()
+
+    def firstpage(self):
+        self.clear()
+        self.var = IntVar(self)
+        self.var.set(1)
+        self.listwidget.append(Radiobutton(master=self, font=25, text="Use new working copy directory", variable=self.var, value=1))
+        self.listwidget[-1].pack(anchor = W)
+        
+        self.listwidget.append(Radiobutton(master=self, font=25, text="Use existing working copy directory", variable=self.var, value=2))
+        self.listwidget[-1].pack(anchor = W)
+        self.index = 0
+        self.prebtn.config(state=DISABLED)
+
+    def secondpage(self):
+        self.clear()
+        projframe = Frame(self)
+        projframe.pack(fill="x")
+        self.listwidget.append(projframe)
+        Label(projframe, text='ProjectName:', font=25, width=20, anchor=E).pack(side=LEFT)
+        
+        Entry(projframe, textvariable=self.projname, width=40).pack(side=LEFT)
+
+        wcframe = Frame(self)
+        wcframe.pack(fill='x')
+        self.listwidget.append(wcframe)
+        Label(wcframe, text='Workingcopy Path:', font=25, width=20, anchor=E).pack(side=LEFT)
+        Entry(wcframe, textvariable=self.projpath, width=40).pack(side=LEFT)
+
+        urlframe = Frame(self)
+        urlframe.pack(fill='x')
+        self.listwidget.append(urlframe)
+        Label(urlframe, text='Subversion URL:', font=25, width=20, anchor=E).pack(side=LEFT)
+        entry = Entry(urlframe, textvariable=self.projurl, width=40)
+        entry.pack(side=LEFT)
+        
+        if self.var.get() == 2:
+            entry.config(state=DISABLED)
+            
+        self.index = 1
+        self.prebtn.config(state=NORMAL)
+
+    def clear(self):
+        for widget in self.listwidget:
+            widget.destroy()
+        del self.listwidget[:]
 
 class MarkFrame(MainFrame):
     def __init__(self, bor=0):
         MainFrame.__init__(self, bor=bor)
+        self.box.place(relwidth=1.0, relheight=0.96)
         self.dirtree = {}
         self.dirlist = []
+        self.addbtn = Button(self, text='Add Project', command=self.addproj)
+        self.addbtn.place(relwidth=1.0, relheight=0.04, rely=0.96)
+        #self.addbtn.pack(side=BOTTOM, fill=BOTH)
+        self.hasDialog = False
+
+    def addproj(self):
+        info = self.get_proj_info()
+        if not info:
+            return
+        del self.ProjDialog
+        self.dirtree[info["name"]] = recur_path(info["path"])
+        self.dirlist.append([info["name"]])
+        self.additem(self.dirlist[-1])
+        self.box.bind('<Double-Button-1>', self.rollfolder)
+    
+    def get_proj_info(self):
+        if not self.hasDialog:
+            self.ProjDialog = AddProjDialog()
+            self.hasDialog = True
+            self.wait_window(self.ProjDialog)
+            self.hasDialog = False
+            return self.ProjDialog.projinfo 
+        else:
+            self.ProjDialog.wm_attributes('-topmost',1)
+            return None
 
     def rollfolder(self, event):
         self.index = self.box.curselection()[0]
         self.update_cb()
-
-    def addproj(self, name, path):
-        self.dirtree[name] = recur_path(path)
-        self.dirlist.append([name])
-        self.additem(self.dirlist[-1])
-        self.box.bind('<Double-Button-1>', self.rollfolder)
 
     def delproj(self, name):
         pass
@@ -127,6 +220,7 @@ class MarkFrame(MainFrame):
 class DirListFrame(MainFrame):
     def __init__(self, bor=0):
         MainFrame.__init__(self, bor=bor)
+        self.box.place(relwidth=1.0, relheight=1.0)
         self.box.bind('<Double-Button-1>', self.rollfolder)
         self.dirtree = {}
         self.dirlist = []
@@ -167,10 +261,11 @@ class MainWindow(Tk):
         self.DirDetail.place(relx=0.25, relwidth=0.75, relheight=1.0, bordermode=INSIDE)
         self.MarkBook.register_cb(self.DirDetail.update_cb)
         self.DirDetail.register_cb(self.MarkBook.update_cb)
-    def addproj(self, name, path):
-        self.MarkBook.addproj(name, path)
+
+    # def addproj(self, name, path):
+    #     self.MarkBook.addproj(name, path)
 
 
 app = MainWindow()
-app.addproj("pro1", "/home/hering/WorkSpace/SVN/trunk")
+#app.addproj("pro1", "/home/hering/WorkSpace/SVN/trunk")
 app.mainloop()
