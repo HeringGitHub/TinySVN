@@ -4,7 +4,8 @@ from Tkinter import *
 
 import tkMessageBox
 import os
-
+import re
+import svn
 
 def recur_path(path, depth=0):
     tree = {}
@@ -75,6 +76,8 @@ class AddProjDialog(Toplevel):
         self.canbtn.pack(side=RIGHT)
         self.nxtbtn.pack(side=RIGHT)
         self.prebtn.pack(side=RIGHT)
+        self.labelfrm = Frame(self)
+        self.labelfrm.pack(side=BOTTOM, fill="x")
         self.projurl = StringVar(self)
         self.projpath = StringVar(self)
         self.projname = StringVar(self)
@@ -85,10 +88,32 @@ class AddProjDialog(Toplevel):
         self.pages[self.index]()
 
     def nextpage(self):
-        if self.index == 1:
+        if self.index == 1: 
+            path = self.projpath.get()
+            url = self.projurl.get()
+            
+            if self.var.get() == 2:
+                if not os.path.isdir(path):
+                    self.listwidget.append(Label(master=self.labelfrm, text="Invalid path!", fg="red"))
+                    self.listwidget[-1].pack(side=RIGHT)
+                    return
+                svn_info = svn.SVN(path)
+                url = svn_info.get_repository()
+                if not url:
+                    self.listwidget.append(Label(master=self.labelfrm, text="Invalid repository!", fg="red"))
+                    self.listwidget[-1].pack(side=RIGHT)
+                    return
+            else:
+                if not re.match(r'^https?:/{2}\w.+$', url):
+                    self.listwidget.append(Label(master=self.labelfrm, text="Invalid url!", fg="red"))
+                    self.listwidget[-1].pack(side=RIGHT)
+                    return
+                else:
+                    svn_info = svn.SVN(path)
+                    svn_info.set_repository(url)
+                    svn_info.checkout()
             self.projinfo["name"] = self.projname.get()
-            self.projinfo["path"] = self.projpath.get()
-            self.projinfo["url"] = self.projurl.get()
+            self.projinfo["path"] = path
             self.destroy()
         else:
             self.pages[self.index]()
