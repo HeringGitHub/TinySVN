@@ -1,11 +1,12 @@
 #!/usr/bin/python
-
 from Tkinter import *
 
+import tkFileDialog
 import tkMessageBox
 import os
 import re
 import svn
+import config
 
 def recur_path(path, depth=0):
     tree = {}
@@ -17,7 +18,8 @@ def recur_path(path, depth=0):
     if os.path.isdir(path):
         _, dirs, files = os.walk(path).next()
         for dir in dirs:
-            tree["child"][dir] = recur_path(path + "/" + dir, depth + 1)
+            if depth == 0 and dir != ".svn":
+                tree["child"][dir] = recur_path(path + "/" + dir, depth + 1)
         for file in files:
             tree["child"][file] = recur_path(path + "/" + file, depth + 1)
     return tree
@@ -91,7 +93,12 @@ class AddProjDialog(Toplevel):
         if self.index == 1: 
             path = self.projpath.get()
             url = self.projurl.get()
-            
+            name = self.projname.get()
+            if config.Config().has_proj(name):
+                self.listwidget.append(Label(master=self.labelfrm, text="Project %s already exist!" % name, fg="red"))
+                self.listwidget[-1].pack(side=RIGHT)
+                return
+
             if self.var.get() == 2:
                 if not os.path.isdir(path):
                     self.listwidget.append(Label(master=self.labelfrm, text="Invalid path!", fg="red"))
@@ -139,20 +146,20 @@ class AddProjDialog(Toplevel):
         projframe.pack(fill="x")
         self.listwidget.append(projframe)
         Label(projframe, text='ProjectName:', font=25, width=20, anchor=E).pack(side=LEFT)
-        
-        Entry(projframe, textvariable=self.projname, width=40).pack(side=LEFT)
+        Entry(projframe, textvariable=self.projname, width=30).pack(side=LEFT)
 
         wcframe = Frame(self)
         wcframe.pack(fill='x')
         self.listwidget.append(wcframe)
         Label(wcframe, text='Workingcopy Path:', font=25, width=20, anchor=E).pack(side=LEFT)
-        Entry(wcframe, textvariable=self.projpath, width=40).pack(side=LEFT)
+        Entry(wcframe, textvariable=self.projpath, width=30).pack(side=LEFT)
+        Button(wcframe, text = "Select Directory", command = self.selectPath).pack(side=LEFT)
 
         urlframe = Frame(self)
         urlframe.pack(fill='x')
         self.listwidget.append(urlframe)
         Label(urlframe, text='Subversion URL:', font=25, width=20, anchor=E).pack(side=LEFT)
-        entry = Entry(urlframe, textvariable=self.projurl, width=40)
+        entry = Entry(urlframe, textvariable=self.projurl, width=30)
         entry.pack(side=LEFT)
         
         if self.var.get() == 2:
@@ -166,6 +173,10 @@ class AddProjDialog(Toplevel):
             widget.destroy()
         del self.listwidget[:]
 
+    def selectPath(self):
+        self.projpath.set(tkFileDialog.askdirectory())
+        self.wm_attributes('-topmost',1)
+
 class MarkFrame(MainFrame):
     def __init__(self, bor=0):
         MainFrame.__init__(self, bor=bor)
@@ -174,17 +185,27 @@ class MarkFrame(MainFrame):
         self.dirlist = []
         self.addbtn = Button(self, text='Add Project', command=self.addproj)
         self.addbtn.place(relwidth=1.0, relheight=0.04, rely=0.96)
-        #self.addbtn.pack(side=BOTTOM, fill=BOTH)
+        self.config = config.Config()
+        self.restore()
         self.hasDialog = False
+
+    def restore(self):
+        tmp = sorted(self.config.data.items(), key = lambda v: v[1]["index"])
+        for it in tmp:
+            self.dirtree[it[0]] = recur_path(it[1]["path"])
+            self.dirlist.append([it[0]])
+            self.additem(self.dirlist[-1], len(self.dirlist) - 1)
+            self.box.bind('<Double-Button-1>', self.rollfolder)
 
     def addproj(self):
         info = self.get_proj_info()
         if not info:
             return
         del self.ProjDialog
+        self.config.add_proj(info["name"], info["path"])
         self.dirtree[info["name"]] = recur_path(info["path"])
         self.dirlist.append([info["name"]])
-        self.additem(self.dirlist[-1])
+        self.additem(self.dirlist[-1], len(self.dirlist) - 1)
         self.box.bind('<Double-Button-1>', self.rollfolder)
     
     def get_proj_info(self):
@@ -287,10 +308,5 @@ class MainWindow(Tk):
         self.MarkBook.register_cb(self.DirDetail.update_cb)
         self.DirDetail.register_cb(self.MarkBook.update_cb)
 
-    # def addproj(self, name, path):
-    #     self.MarkBook.addproj(name, path)
-
-
 app = MainWindow()
-#app.addproj("pro1", "/home/hering/WorkSpace/SVN/trunk")
 app.mainloop()
