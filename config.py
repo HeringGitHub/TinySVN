@@ -8,7 +8,10 @@ class Config:
     def __init__(self):
         self.data = {}
         with open(CONFIG_PATH, "r") as js_file:
-            self.data = json.load(js_file)
+            try:
+                self.data = json.load(js_file)
+            except:
+                return
 
     def has_proj(self, name):
         return self.data.has_key(name)

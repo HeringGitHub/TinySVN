@@ -18,7 +18,7 @@ def recur_path(path, depth=0):
     if os.path.isdir(path):
         _, dirs, files = os.walk(path).next()
         for dir in dirs:
-            if depth == 0 and dir != ".svn":
+            if depth != 0 or (depth == 0 and dir != ".svn"):
                 tree["child"][dir] = recur_path(path + "/" + dir, depth + 1)
         for file in files:
             tree["child"][file] = recur_path(path + "/" + file, depth + 1)
